@@ -99,6 +99,19 @@ def get_tasks_by_project(project_id, active_only=True):
         mask = mask & (df['status'] != 'archived')
     return df[mask]
 
+def update_task(task_id, what, how, metrics, deadline, urgency, importance):
+    """Actualiza los datos de una tarea existente."""
+    updates = {
+        "name": what,
+        "smart_what": what,
+        "smart_how": how,
+        "smart_metrics": metrics,
+        "deadline": str(deadline),
+        "urgency": urgency,
+        "importance": importance
+    }
+    data_engine.update_existing_record("tasks", task_id, updates)
+
 # --- HABITS LOGIC ---
 def create_habit(name, habit_type_str, relation_type, related_id):
     t_val = "good" if "Bueno" in habit_type_str else "bad"

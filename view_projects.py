@@ -75,19 +75,68 @@ def render_tasks():
     tasks = logic_core.get_tasks_by_project(selected_proj_id)
     
     if not tasks.empty:
+        # Ordenar por urgencia
         tasks = tasks.sort_values(by="urgency", ascending=False)
+        
         for i, t in tasks.iterrows():
-            cols = st.columns([4, 2, 2, 1, 1])
-            cols[0].write(f"**{t['name']}**")
-            cols[1].write(f"Límite: {t['deadline']}")
-            cols[2].caption(f"Urg:{t['urgency']} / Imp:{t['importance']}")
+            # Usamos un expander para esconder los detalles de edición y mantener la lista limpia
+            # El título del expander muestra la info básica
+            task_status_icon = "✅" if t['status'] == 'completed' else "⬜"
+            expander_title = f"{task_status_icon} **{t['name']}** | 📅 {t['deadline']} | 🔥 {t['urgency']}"
             
-            if t['status'] == 'active':
-                if cols[3].button("✅", key=f"done_{t['id']}"):
-                    logic_core.complete_task(t['id'])
+            with st.expander(expander_title):
+                
+                # --- SECCIÓN 1: ACCIONES RÁPIDAS ---
+                col_actions = st.columns([1, 1, 1])
+                
+                # Botón de Completar (solo si está activa)
+                if t['status'] == 'active':
+                    if col_actions[0].button("Marcar Completada", key=f"done_{t['id']}"):
+                        logic_core.complete_task(t['id'])
+                        st.rerun()
+                else:
+                    col_actions[0].success("¡Completada!")
+
+                # Botón de Eliminar (Hard Delete)
+                # Usamos un botón con color rojo (type="primary" a veces ayuda a destacar)
+                if col_actions[2].button("🗑️ Eliminar Definitivamente", key=f"del_hard_{t['id']}"):
+                    logic_core.delete_item("tasks", t['id'])
                     st.rerun()
-                if cols[4].button("📂", key=f"arc_t_{t['id']}"):
-                    logic_core.archive_item("tasks", t['id'])
-                    st.rerun()
-            else:
-                cols[3].success("Completada")
+
+                st.markdown("---")
+                st.write("**✏️ Editar Tarea**")
+
+                # --- SECCIÓN 2: FORMULARIO DE EDICIÓN ---
+                with st.form(key=f"edit_form_{t['id']}"):
+                    c_edit_1, c_edit_2 = st.columns(2)
+                    
+                    # Recuperamos valores actuales para pre-llenar
+                    new_what = c_edit_1.text_input("¿Qué?", value=t['name'])
+                    new_how = c_edit_2.text_input("¿Cómo?", value=t.get('smart_how', ''))
+                    
+                    new_metrics = st.text_input("Métrica", value=t.get('smart_metrics', ''))
+                    
+                    # Manejo seguro de fechas
+                    try:
+                        current_date = datetime.strptime(t['deadline'], "%Y-%m-%d").date()
+                    except:
+                        current_date = datetime.now().date()
+                        
+                    new_deadline = st.date_input("Fecha Límite", value=current_date)
+                    
+                    ce1, ce2 = st.columns(2)
+                    new_urgency = ce1.slider("Urgencia", 1, 10, int(t['urgency']))
+                    new_importance = ce2.slider("Importancia", 1, 10, int(t['importance']))
+                    
+                    if st.form_submit_button("Guardar Cambios"):
+                        logic_core.update_task(
+                            t['id'], 
+                            new_what, 
+                            new_how, 
+                            new_metrics, 
+                            new_deadline, 
+                            new_urgency, 
+                            new_importance
+                        )
+                        st.success("Tarea actualizada")
+                        st.rerun()
